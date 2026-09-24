@@ -57,10 +57,10 @@ func Load() *Config {
 	fs := flag.NewFlagSet("crawler", flag.ExitOnError)
 
 	fs.Var(
-		&conf.URLs, "urls", "Comma-seporated list of URLs to parse",
+		&conf.URLs, "urls", "Comma-separated list of URLs to parse",
 	)
 	fs.IntVar(
-		&conf.ReqDepth, "depth", 1, "The depth of recursice search in any page",
+		&conf.ReqDepth, "depth", 1, "The depth of recursive search in any page",
 	)
 	fs.DurationVar(
 		&conf.Timeout, "timeout", time.Minute, "Max time for all program work",
