@@ -16,6 +16,8 @@ func (ss *stringSlice) String() string {
 }
 
 func (ss *stringSlice) Set(value string) error {
+	*ss = nil
+
 	for _, part := range strings.Split(value, ",") {
 		trimmed := strings.TrimSpace(part)
 
