@@ -2,12 +2,44 @@ package config
 
 import (
 	"flag"
+	"fmt"
+	"net/url"
 	"os"
+	"strings"
 	"time"
 )
 
+type stringSlice []string
+
+func (ss *stringSlice) String() string {
+	return fmt.Sprintf("%v", *ss)
+}
+
+func (ss *stringSlice) Set(value string) error {
+	for _, part := range strings.Split(value, ",") {
+		trimmed := strings.TrimSpace(part)
+
+		if trimmed == "" {
+			return fmt.Errorf("URL list contains an empty item (check for trailing or duplicate commas)")
+		}
+
+		parsedURL, err := url.ParseRequestURI(trimmed)
+		if err != nil {
+			return fmt.Errorf("failed to parse URL %s: %w", trimmed, err)
+		}
+
+		if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+			return fmt.Errorf("URL %q must start with http:// or https://", trimmed)
+		}
+
+		*ss = append(*ss, trimmed)
+	}
+
+	return nil
+}
+
 type Config struct {
-	URLs       string
+	URLs       stringSlice
 	ReqDepth   int
 	Timeout    time.Duration
 	ReqTimeout time.Duration
@@ -16,12 +48,14 @@ type Config struct {
 }
 
 func Load() *Config {
-	conf := Config{}
+	conf := Config{
+		URLs: stringSlice{"https://intechs.by"},
+	}
 
 	fs := flag.NewFlagSet("crawler", flag.ExitOnError)
 
-	fs.StringVar(
-		&conf.URLs, "urls", "https://intechs.by", "Comma-seporated list of URLs to parse",
+	fs.Var(
+		&conf.URLs, "urls", "Comma-seporated list of URLs to parse",
 	)
 	fs.IntVar(
 		&conf.ReqDepth, "depth", 1, "The depth of recursice search in any page",
