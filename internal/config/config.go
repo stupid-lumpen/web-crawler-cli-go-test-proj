@@ -9,10 +9,10 @@ import (
 	"time"
 )
 
-type stringSlice []string
+type stringSlice []*url.URL
 
 func (ss *stringSlice) String() string {
-	return fmt.Sprintf("%v", *ss)
+	return fmt.Sprintf("%s", ss.String())
 }
 
 func (ss *stringSlice) Set(value string) error {
@@ -34,7 +34,7 @@ func (ss *stringSlice) Set(value string) error {
 			return fmt.Errorf("URL %q must start with http:// or https://", trimmed)
 		}
 
-		*ss = append(*ss, trimmed)
+		*ss = append(*ss, parsedURL)
 	}
 
 	return nil
@@ -50,9 +50,7 @@ type Config struct {
 }
 
 func Load() *Config {
-	conf := Config{
-		URLs: stringSlice{"https://intechs.by"},
-	}
+	conf := Config{}
 
 	fs := flag.NewFlagSet("crawler", flag.ExitOnError)
 
