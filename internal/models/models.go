@@ -12,8 +12,9 @@ type Node struct {
 }
 
 type ParsedPage struct {
-	Title string
-	Links []*url.URL
+	Resource *url.URL
+	Title    string
+	Links    []*url.URL
 }
 
 type FetchResult struct {
