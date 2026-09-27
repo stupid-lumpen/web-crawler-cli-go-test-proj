@@ -64,7 +64,7 @@ func (p *HTMLParser) Parse(r io.Reader, baseURL *url.URL) (*models.ParsedPage, e
 		return nil, fmt.Errorf("failed to parse html page from %s: %w", baseURL, err)
 	}
 
-	page := &models.ParsedPage{}
+	page := &models.ParsedPage{Resource: baseURL}
 
 	titleSel := doc.Find("title")
 	if titleSel.Length() == 0 {
