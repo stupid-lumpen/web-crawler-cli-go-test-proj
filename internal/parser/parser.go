@@ -17,25 +17,7 @@ func NewHTMLParser() *HTMLParser {
 	return &HTMLParser{}
 }
 
-func (p *HTMLParser) Parse(r io.Reader, baseURL *url.URL) (*models.ParsedPage, error) {
-	if baseURL == nil {
-		return nil, fmt.Errorf("baseURL cannot be nil")
-	}
-
-	doc, err := goquery.NewDocumentFromReader(r)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse html page from %s: %w", baseURL, err)
-	}
-
-	page := &models.ParsedPage{}
-
-	titleSel := doc.Find("title")
-	if titleSel.Length() == 0 {
-		page.Title = "Unnamed"
-	} else {
-		page.Title = strings.TrimSpace(titleSel.Text())
-	}
-
+func findLinks(doc *goquery.Document, baseURL *url.URL) []*url.URL {
 	var links []*url.URL
 
 	doc.Find("a[href]").Each(func(_ int, s *goquery.Selection) {
@@ -62,7 +44,29 @@ func (p *HTMLParser) Parse(r io.Reader, baseURL *url.URL) (*models.ParsedPage, e
 		links = append(links, ref)
 	})
 
-	page.Links = links
+	return links
+}
+
+func (p *HTMLParser) Parse(r io.Reader, baseURL *url.URL) (*models.ParsedPage, error) {
+	if baseURL == nil {
+		return nil, fmt.Errorf("baseURL cannot be nil")
+	}
+
+	doc, err := goquery.NewDocumentFromReader(r)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse html page from %s: %w", baseURL, err)
+	}
+
+	page := &models.ParsedPage{}
+
+	titleSel := doc.Find("title")
+	if titleSel.Length() == 0 {
+		page.Title = "Unnamed"
+	} else {
+		page.Title = strings.TrimSpace(titleSel.Text())
+	}
+
+	page.Links = findLinks(doc, baseURL)
 
 	return page, nil
 }
