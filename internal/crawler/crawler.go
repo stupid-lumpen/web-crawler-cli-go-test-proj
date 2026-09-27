@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"net/url"
+	"sync"
 	"time"
 
 	"web-crawler-go-test-proj/internal/models"
@@ -18,6 +19,15 @@ type Fetcher interface {
 	Fetch(ctx context.Context, targetURL string) (*models.FetchResult, error)
 }
 
+type VisitedURLs struct {
+	mx      sync.Mutex
+	visited map[string]bool
+}
+
+func NewVisitedURLs() *VisitedURLs {
+	return &VisitedURLs{visited: make(map[string]bool)}
+}
+
 type Crawler struct {
 	logger     *slog.Logger
 	parser     Parser
@@ -25,6 +35,7 @@ type Crawler struct {
 	urls       []string
 	maxDepth   int
 	reqTimeout time.Duration
+	visited    *VisitedURLs
 }
 
 func NewCrawler(
@@ -38,5 +49,6 @@ func NewCrawler(
 		urls:       urls,
 		maxDepth:   maxDepth,
 		reqTimeout: reqTimeout,
+		visited:    NewVisitedURLs(),
 	}
 }
