@@ -28,6 +28,18 @@ func NewVisitedURLs() *VisitedURLs {
 	return &VisitedURLs{visited: make(map[string]bool)}
 }
 
+func (vu *VisitedURLs) isVisited(url string) bool {
+	vu.mx.Lock()
+	defer vu.mx.Unlock()
+
+	if vu.visited[url] {
+		return true
+	} else {
+		vu.visited[url] = true
+		return false
+	}
+}
+
 type Crawler struct {
 	logger     *slog.Logger
 	parser     Parser
