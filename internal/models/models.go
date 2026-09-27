@@ -1,6 +1,9 @@
 package models
 
-import "net/url"
+import (
+	"io"
+	"net/url"
+)
 
 type Node struct {
 	Resource string  `json:"resource"`
@@ -11,4 +14,10 @@ type Node struct {
 type ParsedPage struct {
 	Title string
 	Links []*url.URL
+}
+
+type FetchResult struct {
+	StatusCode  int
+	ContentType string
+	Body        io.ReadCloser
 }
