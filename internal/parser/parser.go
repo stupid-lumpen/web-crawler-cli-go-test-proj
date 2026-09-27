@@ -19,6 +19,7 @@ func NewHTMLParser() *HTMLParser {
 
 func findLinks(doc *goquery.Document, baseURL *url.URL) []*url.URL {
 	var links []*url.URL
+	seen := make(map[string]bool)
 
 	doc.Find("a[href]").Each(func(_ int, s *goquery.Selection) {
 		href, _ := s.Attr("href")
@@ -41,6 +42,12 @@ func findLinks(doc *goquery.Document, baseURL *url.URL) []*url.URL {
 		ref = baseURL.ResolveReference(ref)
 		ref.Fragment = ""
 
+		refStr := ref.String()
+		if seen[refStr] {
+			return
+		}
+
+		seen[refStr] = true
 		links = append(links, ref)
 	})
 
