@@ -12,7 +12,18 @@ import (
 type stringSlice []*url.URL
 
 func (ss *stringSlice) String() string {
-	return fmt.Sprintf("%s", ss.String())
+	if ss == nil || len(*ss) == 0 {
+		return ""
+	}
+
+	urls := make([]string, 0, len(*ss))
+	for _, u := range *ss {
+		if u != nil {
+			urls = append(urls, u.String())
+		}
+	}
+
+	return strings.Join(urls, ",")
 }
 
 func (ss *stringSlice) Set(value string) error {
