@@ -23,7 +23,7 @@ type Crawler struct {
 	logger     *slog.Logger
 	parser     Parser
 	fetcher    Fetcher
-	urls       []string
+	urls       []*url.URL
 	maxDepth   int
 	reqTimeout time.Duration
 	visited    map[string]bool
@@ -33,7 +33,7 @@ type Crawler struct {
 
 func NewCrawler(
 	logger *slog.Logger, parser Parser, fetcher Fetcher,
-	urls []string, maxDepth int, reqTimeout time.Duration,
+	urls []*url.URL, maxDepth int, reqTimeout time.Duration,
 ) *Crawler {
 	return &Crawler{
 		logger:     logger,
