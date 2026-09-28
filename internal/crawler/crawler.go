@@ -46,3 +46,13 @@ func NewCrawler(
 		sem:        make(chan struct{}, 10),
 	}
 }
+
+func (c *Crawler) markVisited(rawURL string) bool {
+	c.mx.Lock()
+	defer c.mx.Unlock()
+	if c.visited[rawURL] {
+		return true
+	}
+	c.visited[rawURL] = true
+	return false
+}
