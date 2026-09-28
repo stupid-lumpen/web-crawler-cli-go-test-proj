@@ -30,6 +30,13 @@ go.work.sum
 # env file
 .env
 
+
+*.json
+*.log
+
+coverage.out
+coverage.html
+
 # Editor/IDE
 # .idea/
 # .vscode/
