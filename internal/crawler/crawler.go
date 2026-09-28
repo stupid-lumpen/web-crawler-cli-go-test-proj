@@ -69,15 +69,13 @@ func (c *Crawler) isSameDomain(baseURL, targetURL *url.URL) bool {
 
 func (c *Crawler) Run(ctx context.Context) []*models.Node {
 	var wg sync.WaitGroup
-	roots := make([]*models.Node, len(c.urls))
+	safeRoots := make([]*SafeNode, len(c.urls))
 
 	for i, startURL := range c.urls {
 		urlStr := startURL.String()
-		node := &models.Node{
-			Resource: urlStr,
-			Links:    make([]*models.Node, 0),
-		}
-		roots[i] = node
+		node := NewSafeNode(urlStr)
+
+		safeRoots[i] = node
 
 		if !c.markVisited(urlStr) {
 			wg.Add(1)
@@ -86,10 +84,15 @@ func (c *Crawler) Run(ctx context.Context) []*models.Node {
 	}
 
 	wg.Wait()
+
+	roots := make([]*models.Node, len(safeRoots))
+	for i, safeRoot := range safeRoots {
+		roots[i] = safeRoot.RawNode()
+	}
 	return roots
 }
 
-func (c *Crawler) crawl(ctx context.Context, currentURL *url.URL, node *models.Node, depth int, wg *sync.WaitGroup) {
+func (c *Crawler) crawl(ctx context.Context, currentURL *url.URL, node *SafeNode, depth int, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	select {
@@ -127,7 +130,7 @@ func (c *Crawler) crawl(ctx context.Context, currentURL *url.URL, node *models.N
 		return
 	}
 
-	node.Title = parsedPage.Title
+	node.SetTitle(parsedPage.Title)
 
 	if depth >= c.maxDepth {
 		return
@@ -145,12 +148,7 @@ func (c *Crawler) crawl(ctx context.Context, currentURL *url.URL, node *models.N
 			continue
 		}
 
-		childNode := &models.Node{
-			Resource: linkStr,
-			Links:    make([]*models.Node, 0),
-		}
-
-		node.Links = append(node.Links, childNode)
+		childNode := node.AddChild(linkStr)
 
 		wg.Add(1)
 		go c.crawl(ctx, resolvedLink, childNode, depth+1, wg)
