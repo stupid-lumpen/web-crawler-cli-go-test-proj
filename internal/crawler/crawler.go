@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -55,4 +56,12 @@ func (c *Crawler) markVisited(rawURL string) bool {
 	}
 	c.visited[rawURL] = true
 	return false
+}
+
+func (c *Crawler) isSameDomain(baseURL, targetURL *url.URL) bool {
+	resolvedTarget := baseURL.ResolveReference(targetURL)
+	if resolvedTarget.Scheme != "http" && resolvedTarget.Scheme != "https" {
+		return false
+	}
+	return strings.ToLower(baseURL.Hostname()) == strings.ToLower(resolvedTarget.Hostname())
 }
