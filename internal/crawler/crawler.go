@@ -95,6 +95,10 @@ func (c *Crawler) Run(ctx context.Context) []*models.Node {
 func (c *Crawler) crawl(ctx context.Context, currentURL *url.URL, node *SafeNode, depth int, wg *sync.WaitGroup) {
 	defer wg.Done()
 
+	if err := ctx.Err(); err != nil {
+		return
+	}
+
 	select {
 	case <-ctx.Done():
 		return
