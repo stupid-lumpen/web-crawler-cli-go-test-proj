@@ -154,11 +154,11 @@ func TestCrawler_MaxDepthLimit(t *testing.T) {
 		parseFunc: func(r io.Reader, baseURL *url.URL) (*models.ParsedPage, error) {
 			switch baseURL.String() {
 			case url1.String():
-				return &models.ParsedPage{Title: "Depth 1", Links: []*url.URL{url2}}, nil
+				return &models.ParsedPage{Title: "Depth 0", Links: []*url.URL{url2}}, nil
 			case url2.String():
-				return &models.ParsedPage{Title: "Depth 2", Links: []*url.URL{url3}}, nil
+				return &models.ParsedPage{Title: "Depth 1", Links: []*url.URL{url3}}, nil
 			default:
-				return &models.ParsedPage{Title: "Depth 3", Links: []*url.URL{}}, nil
+				return &models.ParsedPage{Title: "Depth 2", Links: []*url.URL{}}, nil
 			}
 		},
 	}
@@ -168,15 +168,25 @@ func TestCrawler_MaxDepthLimit(t *testing.T) {
 
 	root := nodes[0]
 	if len(root.Links) != 1 {
-		t.Fatalf("expected 1 child at depth 1, got %d", len(root.Links))
+		t.Fatalf("expected 1 child at depth 0, got %d", len(root.Links))
 	}
 
-	depth2Node := root.Links[0]
-	if depth2Node.Title != "Depth 2" {
-		t.Errorf("expected depth 2 title, got %q", depth2Node.Title)
+	depth1Node := root.Links[0]
+	if len(depth1Node.Links) != 1 {
+		t.Fatalf("expected 1 child at depth 1, got %d", len(depth1Node.Links))
 	}
+
+	if depth1Node.Title != "Depth 1" {
+		t.Errorf("expected 'Depth 1' title at depth 1, but got %q", depth1Node.Title)
+	}
+
+	depth2Node := depth1Node.Links[0]
 	if len(depth2Node.Links) != 0 {
-		t.Errorf("expected 0 links at max depth, got %d", len(depth2Node.Links))
+		t.Errorf("expected 0 links at max depth, got %d", len(depth1Node.Links))
+	}
+
+	if depth2Node.Title != "Depth 2" {
+		t.Errorf("expected 'Depth 2' title at depth 2, but got %q", depth2Node.Title)
 	}
 }
 
