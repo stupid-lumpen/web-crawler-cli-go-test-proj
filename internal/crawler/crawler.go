@@ -79,7 +79,7 @@ func (c *Crawler) Run(ctx context.Context) []*models.Node {
 
 		if !c.markVisited(urlStr) {
 			wg.Add(1)
-			go c.crawl(ctx, startURL, node, 1, &wg)
+			go c.crawl(ctx, startURL, node, 0, &wg)
 		}
 	}
 
