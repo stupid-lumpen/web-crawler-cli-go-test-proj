@@ -127,12 +127,12 @@ func (c *Crawler) crawl(ctx context.Context, currentURL *url.URL, node *SafeNode
 	defer fetchResult.Body.Close()
 
 	if fetchResult.StatusCode != http.StatusOK {
-		c.logger.Debug("status code is not 200", slog.String("url", urlStr), slog.Int("status-code", fetchResult.StatusCode))
+		c.logger.Error("status code is not 200", slog.String("url", urlStr), slog.Int("status-code", fetchResult.StatusCode))
 		return
 	}
 
 	if !strings.HasPrefix(fetchResult.ContentType, "text/html") {
-		c.logger.Debug("content-type is not text/html", slog.String("url", urlStr), slog.String("content-type", fetchResult.ContentType))
+		c.logger.Error("content-type is not text/html", slog.String("url", urlStr), slog.String("content-type", fetchResult.ContentType))
 		return
 	}
 
