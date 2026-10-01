@@ -64,7 +64,15 @@ func (c *Crawler) isSameDomain(baseURL, targetURL *url.URL) bool {
 	if resolvedTarget.Scheme != "http" && resolvedTarget.Scheme != "https" {
 		return false
 	}
-	return strings.ToLower(baseURL.Hostname()) == strings.ToLower(resolvedTarget.Hostname())
+
+	baseHost := strings.ToLower(baseURL.Hostname())
+	targetHost := strings.ToLower(resolvedTarget.Hostname())
+
+	if baseHost == targetHost {
+		return true
+	}
+
+	return strings.HasSuffix(targetHost, "."+baseHost)
 }
 
 func (c *Crawler) Run(ctx context.Context) []*models.Node {
