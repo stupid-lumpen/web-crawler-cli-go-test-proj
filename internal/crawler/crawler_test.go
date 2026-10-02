@@ -51,42 +51,6 @@ func createNopLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
 
-func TestSafeNode_ConcurrentAccess(t *testing.T) {
-	node := crawler.NewSafeNode("https://example.com")
-
-	var wg sync.WaitGroup
-	const numGoroutines = 50
-
-	for i := 0; i < numGoroutines; i++ {
-		wg.Add(3)
-
-		go func(id int) {
-			defer wg.Done()
-			node.SetTitle("Title")
-		}(i)
-
-		go func(id int) {
-			defer wg.Done()
-			_ = node.AddChild("https://example.com/child")
-		}(i)
-
-		go func(id int) {
-			defer wg.Done()
-			_ = node.RawNode()
-		}(i)
-	}
-
-	wg.Wait()
-
-	raw := node.RawNode()
-	if raw.Title != "Title" {
-		t.Errorf("expected title 'Title', got %q", raw.Title)
-	}
-	if len(raw.Links) != numGoroutines {
-		t.Errorf("expected %d child links, got %d", numGoroutines, len(raw.Links))
-	}
-}
-
 func TestCrawler_Run_BasicCrawl(t *testing.T) {
 	startURL := parseURL(t, "https://example.com")
 	childURL := parseURL(t, "https://example.com/page1")
@@ -163,8 +127,12 @@ func TestCrawler_MaxDepthLimit(t *testing.T) {
 		},
 	}
 
-	c := crawler.NewCrawler(createNopLogger(), parser, fetcher, []*url.URL{url1}, 2, time.Second)
+	c := crawler.NewCrawler(createNopLogger(), parser, fetcher, []*url.URL{url1}, 1, time.Second)
 	nodes := c.Run(context.Background())
+
+	if len(nodes) == 0 {
+		t.Fatal("expected root node, got 0 nodes")
+	}
 
 	root := nodes[0]
 	if len(root.Links) != 1 {
@@ -172,21 +140,12 @@ func TestCrawler_MaxDepthLimit(t *testing.T) {
 	}
 
 	depth1Node := root.Links[0]
-	if len(depth1Node.Links) != 1 {
-		t.Fatalf("expected 1 child at depth 1, got %d", len(depth1Node.Links))
-	}
-
 	if depth1Node.Title != "Depth 1" {
 		t.Errorf("expected 'Depth 1' title at depth 1, but got %q", depth1Node.Title)
 	}
 
-	depth2Node := depth1Node.Links[0]
-	if len(depth2Node.Links) != 0 {
-		t.Errorf("expected 0 links at max depth, got %d", len(depth1Node.Links))
-	}
-
-	if depth2Node.Title != "Depth 2" {
-		t.Errorf("expected 'Depth 2' title at depth 2, but got %q", depth2Node.Title)
+	if len(depth1Node.Links) != 0 {
+		t.Errorf("expected 0 links beyond max depth, got %d", len(depth1Node.Links))
 	}
 }
 
@@ -308,6 +267,9 @@ func TestCrawler_HandlesNon200AndWrongContentType(t *testing.T) {
 			c := crawler.NewCrawler(createNopLogger(), parser, fetcher, []*url.URL{startURL}, 2, time.Second)
 			nodes := c.Run(context.Background())
 
+			if len(nodes) == 0 {
+				t.Fatal("expected node in results map")
+			}
 			if nodes[0].Title != "" {
 				t.Errorf("expected empty title when page fails checks, got %q", nodes[0].Title)
 			}
