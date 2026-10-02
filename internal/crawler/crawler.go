@@ -2,6 +2,8 @@ package crawler
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -11,6 +13,11 @@ import (
 	"time"
 
 	"web-crawler-go-test-proj/internal/models"
+)
+
+var (
+	ErrStatusCodeNot200   = errors.New("status code must be 200")
+	ErrInvalidContentType = errors.New("content-type must be 'text/html'")
 )
 
 type Parser interface {
@@ -28,9 +35,6 @@ type Crawler struct {
 	urls       []*url.URL
 	maxDepth   int
 	reqTimeout time.Duration
-	visited    map[string]bool
-	mx         sync.Mutex
-	sem        chan struct{}
 }
 
 func NewCrawler(
@@ -44,19 +48,7 @@ func NewCrawler(
 		urls:       urls,
 		maxDepth:   maxDepth,
 		reqTimeout: reqTimeout,
-		visited:    make(map[string]bool),
-		sem:        make(chan struct{}, 10),
 	}
-}
-
-func (c *Crawler) markVisited(rawURL string) bool {
-	c.mx.Lock()
-	defer c.mx.Unlock()
-	if c.visited[rawURL] {
-		return true
-	}
-	c.visited[rawURL] = true
-	return false
 }
 
 func (c *Crawler) isSameDomain(baseURL, targetURL *url.URL) bool {
@@ -75,94 +67,127 @@ func (c *Crawler) isSameDomain(baseURL, targetURL *url.URL) bool {
 	return strings.HasSuffix(targetHost, "."+baseHost)
 }
 
-func (c *Crawler) Run(ctx context.Context) []*models.Node {
-	var wg sync.WaitGroup
-	safeRoots := make([]*SafeNode, len(c.urls))
-
-	for i, startURL := range c.urls {
-		urlStr := startURL.String()
-		node := NewSafeNode(urlStr)
-
-		safeRoots[i] = node
-
-		if !c.markVisited(urlStr) {
-			wg.Add(1)
-			go c.crawl(ctx, startURL, node, 0, &wg)
-		}
-	}
-
-	wg.Wait()
-
-	roots := make([]*models.Node, len(safeRoots))
-	for i, safeRoot := range safeRoots {
-		roots[i] = safeRoot.RawNode()
-	}
-	return roots
+type taskUnit struct {
+	url   *url.URL
+	depth int
 }
 
-func (c *Crawler) crawl(ctx context.Context, currentURL *url.URL, node *SafeNode, depth int, wg *sync.WaitGroup) {
-	defer wg.Done()
-
-	if err := ctx.Err(); err != nil {
-		return
-	}
-
-	select {
-	case <-ctx.Done():
-		return
-	case c.sem <- struct{}{}:
-		defer func() { <-c.sem }()
-	}
-
+func (c *Crawler) fetchAndParse(ctx context.Context, currentURL *url.URL) (*models.ParsedPage, error) {
 	urlStr := currentURL.String()
-
 	reqCtx, cancel := context.WithTimeout(ctx, c.reqTimeout)
 	defer cancel()
 
 	fetchResult, err := c.fetcher.Fetch(reqCtx, urlStr)
 	if err != nil {
-		c.logger.Error("fetching failure", slog.String("url", urlStr), slog.Any("error", err))
-		return
+		c.logger.Error("fetching failure",
+			slog.String("url", urlStr),
+			slog.Any("error", err))
+		return nil, fmt.Errorf("failed to fetch url %q: %w", urlStr, err)
 	}
 	defer fetchResult.Body.Close()
 
 	if fetchResult.StatusCode != http.StatusOK {
-		c.logger.Error("status code is not 200", slog.String("url", urlStr), slog.Int("status-code", fetchResult.StatusCode))
-		return
+		c.logger.Error("status code is not 200",
+			slog.String("url", urlStr),
+			slog.Int("status-code", fetchResult.StatusCode))
+		return nil, fmt.Errorf(
+			"invalid status code %d from %q: %w", fetchResult.StatusCode, urlStr, ErrStatusCodeNot200,
+		)
 	}
 
 	if !strings.HasPrefix(fetchResult.ContentType, "text/html") {
-		c.logger.Error("content-type is not text/html", slog.String("url", urlStr), slog.String("content-type", fetchResult.ContentType))
-		return
+		c.logger.Error("content-type is not text/html",
+			slog.String("url", urlStr),
+			slog.String("content-type", fetchResult.ContentType))
+		return nil, fmt.Errorf(
+			"invalid content-type %s from %q: %w", fetchResult.ContentType, urlStr, ErrInvalidContentType,
+		)
 	}
 
 	parsedPage, err := c.parser.Parse(fetchResult.Body, currentURL)
 	if err != nil {
-		c.logger.Error("parsing failure", slog.String("url", urlStr), slog.Any("error", err))
-		return
+		c.logger.Error("parsing failure",
+			slog.String("url", urlStr),
+			slog.Any("error", err))
+		return nil, fmt.Errorf("failed to parse html from %q: %w", urlStr, err)
 	}
 
-	node.SetTitle(parsedPage.Title)
+	return parsedPage, nil
+}
 
-	if depth >= c.maxDepth {
-		return
+func (c *Crawler) crawl(ctx context.Context, tasks chan *taskUnit, nodesMap *VisitedMap, wg *sync.WaitGroup) {
+	for task := range tasks {
+		func() {
+			defer wg.Done()
+
+			if err := ctx.Err(); err != nil {
+				return
+			}
+
+			parsedPage, err := c.fetchAndParse(ctx, task.url)
+			if err != nil {
+				c.logger.Error("handling web-site failure",
+					slog.Any("error", err))
+				return
+			}
+
+			urlStr := task.url.String()
+
+			if err = nodesMap.SetTitle(urlStr, parsedPage.Title); err != nil {
+				c.logger.Error("setting title error",
+					slog.String("node-url", urlStr),
+					slog.Any("error", err))
+				return
+			}
+
+			if task.depth < c.maxDepth {
+				for _, childURL := range parsedPage.Links {
+					if !c.isSameDomain(task.url, childURL) {
+						continue
+					}
+
+					isNew, err := nodesMap.AddChild(urlStr, childURL.String())
+					if err != nil {
+						continue
+					}
+
+					if isNew {
+						wg.Add(1)
+						select {
+						case <-ctx.Done():
+							wg.Done()
+						case tasks <- &taskUnit{url: childURL, depth: task.depth + 1}:
+						}
+					}
+				}
+			}
+		}()
+	}
+}
+
+func (c *Crawler) Run(ctx context.Context) []*models.Node {
+	var wg sync.WaitGroup
+	safeRoots := NewVisitedMap()
+	tasks := make(chan *taskUnit, 100)
+
+	workerCount := 10
+
+	for range workerCount {
+		go c.crawl(ctx, tasks, safeRoots, &wg)
 	}
 
-	for _, linkURL := range parsedPage.Links {
-		if !c.isSameDomain(currentURL, linkURL) {
-			continue
-		}
-
-		resolvedLink := currentURL.ResolveReference(linkURL)
-		linkStr := resolvedLink.String()
-
-		if c.markVisited(linkStr) {
-			continue
-		}
-
-		childNode := node.AddChild(linkStr)
-
+	for _, url := range c.urls {
+		safeRoots.AddRoot(url.String())
 		wg.Add(1)
-		go c.crawl(ctx, resolvedLink, childNode, depth+1, wg)
+		select {
+		case <-ctx.Done():
+			wg.Done()
+		case tasks <- &taskUnit{url: url, depth: 0}:
+		}
 	}
+
+	wg.Wait()
+	close(tasks)
+
+	return safeRoots.ToTree()
 }
