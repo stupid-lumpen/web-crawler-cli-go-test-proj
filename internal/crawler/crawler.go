@@ -126,8 +126,6 @@ func (c *Crawler) crawl(ctx context.Context, tasks chan *taskUnit, nodesMap *Vis
 
 			parsedPage, err := c.fetchAndParse(ctx, task.url)
 			if err != nil {
-				c.logger.Error("handling web-site failure",
-					slog.Any("error", err))
 				return
 			}
 
